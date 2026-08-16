@@ -1,0 +1,26 @@
+version: 2
+
+updates:
+  # Go dependencies. sarama and bubbletea are the ones that matter; grouping the
+  # rest keeps a weekly run down to one or two pull requests instead of ten.
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      charm:
+        patterns:
+          - "github.com/charmbracelet/*"
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "chore(deps)"
+
+  # The workflows pin actions by major version; this keeps those pins current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(ci)"

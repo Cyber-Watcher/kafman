@@ -1,0 +1,110 @@
+# kafman configuration.
+# Written by kafman; hand edits are preserved except for comments.
+# This file contains passwords: keep it readable only by you (chmod 600).
+
+current-cluster: local
+ui:
+    theme: dark
+    plain-fonts: false
+    timestamp-format: datetime
+    refresh-interval: 5s
+    record-buffer-size: 5000
+clusters:
+    - name: local
+      color: '#00D787'
+      brokers:
+        - localhost:9092
+        - localhost:9192
+        - localhost:9292
+      kafka-version: 3.9.0
+      client-id: kafman-dev
+      request-timeout: 10s
+      jmx:
+        enabled: true
+        targets:
+            - broker-id: 1
+              url: http://localhost:9404/metrics
+            - broker-id: 2
+              url: http://localhost:9405/metrics
+            - broker-id: 3
+              url: http://localhost:9406/metrics
+      node-exporter:
+        enabled: true
+        targets:
+            - broker-id: 1
+              url: http://localhost:9100/metrics
+            - broker-id: 2
+              url: http://localhost:9101/metrics
+            - broker-id: 3
+              url: http://localhost:9102/metrics
+    - name: local-sasl-plain
+      color: '#5FAFFF'
+      brokers:
+        - localhost:9093
+        - localhost:9193
+        - localhost:9293
+      kafka-version: 3.9.0
+      client-id: kafman
+      request-timeout: 10s
+      sasl:
+        enabled: true
+        mechanism: plain
+        username: kafman
+        password: kafman-secret
+    - name: local-sasl-scram
+      color: '#FFAF00'
+      brokers:
+        - localhost:9093
+        - localhost:9193
+        - localhost:9293
+      kafka-version: 3.9.0
+      client-id: kafman
+      request-timeout: 10s
+      sasl:
+        enabled: true
+        mechanism: scram-sha-512
+        username: kafman
+        password: kafman-secret
+    - name: local-ssl
+      color: '#7571F9'
+      brokers:
+        - localhost:9094
+        - localhost:9194
+        - localhost:9294
+      kafka-version: 3.9.0
+      client-id: kafman
+      request-timeout: 10s
+      tls:
+        enabled: true
+        ca: certs/ca.crt
+      sasl:
+        enabled: true
+        mechanism: scram-sha-256
+        username: kafman
+        password: kafman-secret
+    - name: local-bad-password
+      color: '#FF5F5F'
+      brokers:
+        - localhost:9093
+      kafka-version: 3.9.0
+      client-id: kafman
+      request-timeout: 5s
+      sasl:
+        enabled: true
+        mechanism: scram-sha-512
+        username: kafman
+        password: definitely-wrong
+    - name: local-untrusted-ca
+      color: '#FF5F5F'
+      brokers:
+        - localhost:9094
+      kafka-version: 3.9.0
+      client-id: kafman
+      request-timeout: 5s
+      tls:
+        enabled: true
+      sasl:
+        enabled: true
+        mechanism: scram-sha-256
+        username: kafman
+        password: kafman-secret

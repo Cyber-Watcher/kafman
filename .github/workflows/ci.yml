@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch makes the previous run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  check:
+    name: vet, lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -s -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files are not gofmt -s clean:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+
+      - name: cross-compile every release target
+        run: make dist VERSION=ci-${{ github.sha }}
+
+# Unit tests, the race detector and govulncheck are deliberately not here —
+# they run locally via `make release-check` before a release. The integration
+# suite also stays local: it needs three Kafka brokers and failed on
+# infrastructure rather than on the code when it ran on a hosted runner.
+#
+#   make release-check
+#   make stack-up && make stack-init && make test-integration

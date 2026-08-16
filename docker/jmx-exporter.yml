@@ -1,0 +1,73 @@
+# jmx_exporter rules for the kafman test cluster.
+#
+# Deliberately narrow: only the metrics kafman's Monitoring tab consumes
+# (stage 13). A catch-all `pattern: ".*"` would expose several thousand series
+# and make every scrape slow.
+
+lowercaseOutputName: true
+lowercaseOutputLabelNames: true
+
+# Restricting the object names keeps the JMX walk cheap.
+whitelistObjectNames:
+  - "kafka.server:type=BrokerTopicMetrics,name=*"
+  - "kafka.server:type=ReplicaManager,name=*"
+  - "kafka.server:type=KafkaRequestHandlerPool,name=*"
+  - "kafka.server:type=KafkaServer,name=BrokerState"
+  - "kafka.network:type=SocketServer,name=*"
+  - "kafka.network:type=RequestMetrics,name=*,request=*"
+  - "kafka.controller:type=KafkaController,name=*"
+  - "java.lang:type=Memory"
+  - "java.lang:type=GarbageCollector,name=*"
+  - "java.lang:type=OperatingSystem"
+
+rules:
+  # Throughput and request rates, e.g.
+  # kafka.server:type=BrokerTopicMetrics,name=BytesInPerSec -> kafka_server_brokertopicmetrics_bytesinpersec
+  - pattern: "kafka.server<type=BrokerTopicMetrics, name=(.+)><>(Count|OneMinuteRate|FifteenMinuteRate)"
+    name: "kafka_server_brokertopicmetrics_$1_$2"
+    type: GAUGE
+
+  # Replication health: UnderReplicatedPartitions, IsrShrinksPerSec, OfflineReplicaCount…
+  - pattern: "kafka.server<type=ReplicaManager, name=(.+)><>(Value|Count|OneMinuteRate)"
+    name: "kafka_server_replicamanager_$1_$2"
+    type: GAUGE
+
+  # Request handler idle ratio — the classic broker saturation signal.
+  - pattern: "kafka.server<type=KafkaRequestHandlerPool, name=(.+)><>(Value|OneMinuteRate)"
+    name: "kafka_server_requesthandlerpool_$1_$2"
+    type: GAUGE
+
+  - pattern: "kafka.network<type=SocketServer, name=(.+)><>(Value)"
+    name: "kafka_network_socketserver_$1"
+    type: GAUGE
+
+  # Request latency percentiles per API.
+  - pattern: "kafka.network<type=RequestMetrics, name=(.+), request=(.+)><>(Count|Mean|99thPercentile)"
+    name: "kafka_network_requestmetrics_$1_$3"
+    labels:
+      request: "$2"
+    type: GAUGE
+
+  - pattern: "kafka.controller<type=KafkaController, name=(.+)><>(Value)"
+    name: "kafka_controller_$1"
+    type: GAUGE
+
+  # JVM heap.
+  - pattern: "java.lang<type=Memory><HeapMemoryUsage>(used|committed|max)"
+    name: "jvm_memory_heap_$1_bytes"
+    type: GAUGE
+
+  - pattern: "java.lang<type=Memory><NonHeapMemoryUsage>(used|committed)"
+    name: "jvm_memory_nonheap_$1_bytes"
+    type: GAUGE
+
+  # Garbage collection.
+  - pattern: "java.lang<type=GarbageCollector, name=(.+)><>(CollectionCount|CollectionTime)"
+    name: "jvm_gc_$2"
+    labels:
+      gc: "$1"
+    type: COUNTER
+
+  - pattern: "java.lang<type=OperatingSystem><>(ProcessCpuLoad|SystemCpuLoad|OpenFileDescriptorCount|AvailableProcessors)"
+    name: "jvm_os_$1"
+    type: GAUGE

@@ -1,0 +1,195 @@
+name: Release
+
+# Every commit that lands on main is released: the version is derived from the
+# commits since the last tag, the tag is created here, and the binaries are
+# attached to a GitHub Release.
+#
+# A tag pushed by hand releases too, which is the escape hatch when a version
+# has to be chosen deliberately:
+#
+#   git tag -a v1.2.0 -m "..." && git push origin v1.2.0
+#
+# Add [skip release] to a commit message to land it on main without a release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. v1.2.0 (blank derives it from the commits)"
+        required: false
+
+# Two releases at once would race on the tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # The whole history: the version comes from the tags and the release
+          # notes from the commits since the last one.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      # Nothing is released that does not build and pass its tests. The
+      # integration suite is not here on purpose: it needs a Kafka cluster, it
+      # runs in CI on every push, and a release should not hinge on a container
+      # that failed to start.
+      - name: vet and unit tests
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: decide the version
+        id: version
+        run: |
+          set -euo pipefail
+
+          # A tag push releases exactly that tag; the notes then run from the
+          # tag before it, not from the tag being released.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            before=$(git tag --list 'v*' --sort=-v:refname | grep -vFx "${GITHUB_REF_NAME}" | head -n1)
+            echo "version=${GITHUB_REF_NAME}" >>"$GITHUB_OUTPUT"
+            echo "previous=${before}" >>"$GITHUB_OUTPUT"
+            echo "tag_exists=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          previous=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+
+          # An explicit version from workflow_dispatch wins over the derived one.
+          requested="${{ github.event.inputs.version }}"
+          if [ -n "$requested" ]; then
+            echo "version=${requested}" >>"$GITHUB_OUTPUT"
+            echo "previous=${previous}" >>"$GITHUB_OUTPUT"
+            echo "tag_exists=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "$previous" ]; then
+            # The first release of a project that has none.
+            echo "version=v0.1.0" >>"$GITHUB_OUTPUT"
+            echo "previous=" >>"$GITHUB_OUTPUT"
+            echo "tag_exists=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Conventional Commits decide the size of the bump: a breaking change
+          # raises the major, a feature the minor, anything else the patch.
+          subjects=$(git log --format='%s%n%b' "${previous}..HEAD")
+          bump=patch
+          if grep -qE '^[a-z]+(\([^)]*\))?!:|BREAKING[ -]CHANGE' <<<"$subjects"; then
+            bump=major
+          elif grep -qE '^feat(\([^)]*\))?:' <<<"$subjects"; then
+            bump=minor
+          fi
+
+          # A tag written by hand may be v1.2 rather than v1.2.0.
+          IFS=. read -r major minor patch <<<"${previous#v}"
+          minor=${minor:-0}; patch=${patch:-0}
+          case "$bump" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+          esac
+
+          echo "version=v${major}.${minor}.${patch}" >>"$GITHUB_OUTPUT"
+          echo "previous=${previous}" >>"$GITHUB_OUTPUT"
+          echo "tag_exists=false" >>"$GITHUB_OUTPUT"
+          echo "released ${previous} → v${major}.${minor}.${patch} (${bump})"
+
+      - name: skip when the commit asks for it
+        id: gate
+        run: |
+          if git log -1 --format='%B' | grep -qF '[skip release]'; then
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+            echo "the head commit says [skip release]"
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: create the tag
+        if: steps.gate.outputs.skip == 'false' && steps.version.outputs.tag_exists == 'false'
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+
+          # The commit may already carry the tag if a run was replayed.
+          if git rev-parse -q --verify "refs/tags/${version}" >/dev/null; then
+            echo "${version} already exists"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${version}" -m "kafman ${version}"
+          git push origin "${version}"
+
+      - name: build the release archives
+        if: steps.gate.outputs.skip == 'false'
+        run: |
+          make dist \
+            VERSION="${{ steps.version.outputs.version }}" \
+            COMMIT="$(git rev-parse --short HEAD)" \
+            DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+      - name: write the release notes
+        if: steps.gate.outputs.skip == 'false'
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          previous="${{ steps.version.outputs.previous }}"
+
+          {
+            echo "## Changes"
+            echo
+            if [ -n "$previous" ]; then
+              git log --no-merges --pretty=format:'- %s (%h)' "${previous}..HEAD"
+              echo
+              echo
+              echo "**Full diff**: https://github.com/${GITHUB_REPOSITORY}/compare/${previous}...${version}"
+            else
+              echo "- first release"
+            fi
+            echo
+            echo "## Install"
+            echo
+            echo '```bash'
+            echo "go install github.com/${GITHUB_REPOSITORY}@${version}"
+            echo '```'
+            echo
+            echo "Or download the archive for your platform below — one static binary, no runtime"
+            echo "dependencies. Verify it against \`checksums.txt\`:"
+            echo
+            echo '```bash'
+            echo "sha256sum -c checksums.txt --ignore-missing"
+            echo '```'
+          } >notes.md
+
+          cat notes.md
+
+      - name: publish
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            dist/* \
+            --title "kafman ${{ steps.version.outputs.version }}" \
+            --notes-file notes.md \
+            --verify-tag

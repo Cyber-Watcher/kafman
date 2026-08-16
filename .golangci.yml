@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - misspell
+    - bodyclose
+    - errorlint
+    - nilerr
+    - unconvert
+    - copyloopvar
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true # doc comments are required only on packages, not every symbol
+    # No locale is set on purpose: Go APIs use US spelling (lipgloss.Color,
+    # lipgloss.Center), so forcing a locale flags third-party identifiers.
+    misspell: {}
+
+  exclusions:
+    rules:
+      - path: _test\.go$
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/Cyber-Watcher/kafman

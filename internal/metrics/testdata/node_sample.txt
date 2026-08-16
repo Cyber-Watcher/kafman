@@ -1,0 +1,53 @@
+# HELP node_cpu_seconds_total Seconds the CPUs spent in each mode.
+# TYPE node_cpu_seconds_total counter
+node_cpu_seconds_total{cpu="0",mode="idle"} 100000.25
+node_cpu_seconds_total{cpu="0",mode="user"} 2000.5
+node_cpu_seconds_total{cpu="0",mode="system"} 1000.25
+node_cpu_seconds_total{cpu="0",mode="iowait"} 50
+node_cpu_seconds_total{cpu="1",mode="idle"} 99000.75
+node_cpu_seconds_total{cpu="1",mode="user"} 2100.5
+node_cpu_seconds_total{cpu="1",mode="system"} 900.25
+node_cpu_seconds_total{cpu="1",mode="iowait"} 49
+# HELP node_memory_MemTotal_bytes Memory information field MemTotal_bytes.
+# TYPE node_memory_MemTotal_bytes gauge
+node_memory_MemTotal_bytes 1.6452808704e+10
+# HELP node_memory_MemAvailable_bytes Memory information field MemAvailable_bytes.
+# TYPE node_memory_MemAvailable_bytes gauge
+node_memory_MemAvailable_bytes 8.226404352e+09
+# HELP node_load1 1m load average.
+# TYPE node_load1 gauge
+node_load1 0.42
+# HELP node_load5 5m load average.
+# TYPE node_load5 gauge
+node_load5 0.38
+# HELP node_load15 15m load average.
+# TYPE node_load15 gauge
+node_load15 0.35
+# HELP node_disk_read_bytes_total The total number of bytes read successfully.
+# TYPE node_disk_read_bytes_total counter
+node_disk_read_bytes_total{device="sda"} 1.5e+09
+node_disk_read_bytes_total{device="sdb"} 5e+08
+# HELP node_disk_written_bytes_total The total number of bytes written successfully.
+# TYPE node_disk_written_bytes_total counter
+node_disk_written_bytes_total{device="sda"} 3.2e+09
+node_disk_written_bytes_total{device="sdb"} 8e+08
+# HELP node_network_receive_bytes_total Network device statistic receive_bytes.
+# TYPE node_network_receive_bytes_total counter
+node_network_receive_bytes_total{device="eth0"} 7.5e+09
+node_network_receive_bytes_total{device="lo"} 9.9e+09
+# HELP node_network_transmit_bytes_total Network device statistic transmit_bytes.
+# TYPE node_network_transmit_bytes_total counter
+node_network_transmit_bytes_total{device="eth0"} 3.1e+09
+node_network_transmit_bytes_total{device="lo"} 9.9e+09
+# HELP node_filesystem_size_bytes Filesystem size in bytes.
+# TYPE node_filesystem_size_bytes gauge
+node_filesystem_size_bytes{device="/dev/sda1",device_error="",fstype="xfs",mountpoint="/"} 5.36870912e+10
+node_filesystem_size_bytes{device="/dev/sdb1",device_error="",fstype="xfs",mountpoint="/var/lib/kafka/data"} 1.073741824e+11
+node_filesystem_size_bytes{device="tmpfs",fstype="tmpfs",mountpoint="/run"} 8.226404352e+09
+node_filesystem_size_bytes{device="sysfs",fstype="sysfs",mountpoint="/sys"} 0
+# HELP node_filesystem_avail_bytes Filesystem space available to non-root users in bytes.
+# TYPE node_filesystem_avail_bytes gauge
+node_filesystem_avail_bytes{device="/dev/sda1",device_error="",fstype="xfs",mountpoint="/"} 2.147483648e+10
+node_filesystem_avail_bytes{device="/dev/sdb1",device_error="",fstype="xfs",mountpoint="/var/lib/kafka/data"} 3.221225472e+10
+node_filesystem_avail_bytes{device="tmpfs",fstype="tmpfs",mountpoint="/run"} 8.2e+09
+node_filesystem_avail_bytes{device="sysfs",fstype="sysfs",mountpoint="/sys"} 0
